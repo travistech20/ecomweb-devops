@@ -5,9 +5,19 @@
 **/.env
 **/.env.*
 
+# BUT allow example files
+!.env.example
+!.env.*.example
+!**/.env.example
+!**/.env.*.example
+
 # Sensitive credentials
 gcloud.json
 **/gcloud.json
+
+# BUT allow example file
+!gcloud.json.example
+!**/gcloud.json.example
 
 # Data directories
 docker-supabase-ecomapp/volumes/db/data/*
