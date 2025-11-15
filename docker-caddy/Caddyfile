@@ -1,0 +1,198 @@
+{
+    email "travisnguyen.me@gmail.com"
+    admin 0.0.0.0:2019
+}
+
+blog.travisbytes.com {
+    reverse_proxy frontpage-wp:80
+
+    header {
+        Strict-Transport-Security "max-age=63072000; preload"
+    }
+
+    encode zstd gzip
+
+    @assets {
+        path_regexp \.(?:css|js|ico|png|jpg|jpeg|webp|svg|woff2?)$
+    }
+    header @assets {
+        Cache-Control "public, max-age=31536000, immutable"
+    }
+}
+
+workflow.travisbytes.com {
+    reverse_proxy n8n:5678
+    header {
+        Strict-Transport-Security "max-age=63072000; preload"
+    }
+
+    encode zstd gzip
+}
+
+api.travisbytes.com {
+    reverse_proxy api_service:3002
+    header {
+        Strict-Transport-Security "max-age=63072000; preload"
+    }
+
+    encode zstd gzip
+}
+
+storage.travisbytes.com {
+    reverse_proxy minio:9000
+    header {
+        Strict-Transport-Security "max-age=63072000; preload"
+    }
+
+    encode zstd gzip
+}
+
+mail-dev.travisbytes.com {
+    reverse_proxy maildev:1080
+    header {
+        Strict-Transport-Security "max-age=63072000; preload"
+    }
+
+    encode zstd gzip
+}
+
+smtp-dev.travisbytes.com {
+    reverse_proxy maildev:1025
+    header {
+        Strict-Transport-Security "max-age=63072000; preload"
+    }
+
+    encode zstd gzip
+}
+
+project.travisbytes.com {
+    reverse_proxy jira-srv:8080
+    header {
+        Strict-Transport-Security "max-age=63072000; preload"
+    }
+
+    encode zstd gzip
+}
+
+studio.travisbytes.com {
+    reverse_proxy studio_service:80
+    header {
+        Strict-Transport-Security "max-age=63072000; preload"
+    }
+
+    encode zstd gzip
+
+    @assets {
+        path_regexp \.(?:css|js|ico|png|jpg|jpeg|webp|svg|woff2?)$
+    }
+    header @assets {
+        Cache-Control "public, max-age=31536000, immutable"
+    }
+}
+
+aichat.travisbytes.com {
+    reverse_proxy chat-service:80
+    header {
+        Strict-Transport-Security "max-age=63072000; preload"
+    }
+
+    encode zstd gzip
+}
+
+url.travisbytes.com {
+    reverse_proxy yourls:80
+    header {
+        Strict-Transport-Security "max-age=63072000; preload"
+    }
+
+    encode zstd gzip
+}
+
+travisbytes.com, www.travisbytes.com {
+    reverse_proxy travisbytes_web:3000
+
+    header {
+        Strict-Transport-Security "max-age=63072000; preload"
+    }
+
+    encode zstd gzip
+
+    @assets {
+        path_regexp \.(?:css|js|ico|png|jpg|jpeg|webp|svg|woff2?)$
+    }
+    header @assets {
+        Cache-Control "public, max-age=31536000, immutable"
+    }
+    header {
+        X-Real-IP {remote_host}
+        X-Forwarded-For {remote_host}
+        X-Forwarded-Proto {scheme}
+    }
+}
+
+ecomweb.app, www.ecomweb.app {
+  @api {
+    path /api/*
+  }
+  reverse_proxy @api ecomweb_app:3000
+
+  reverse_proxy ecomweb_website:3003
+  header {
+    X-Real-IP {remote_host}
+    X-Forwarded-For {remote_host}
+    X-Forwarded-Proto {scheme}
+  }
+}
+
+dashboard.ecomweb.app {
+  reverse_proxy ecomweb_app:3000
+  header {
+    X-Real-IP {remote_host}
+    X-Forwarded-For {remote_host}
+    X-Forwarded-Proto {scheme}
+  }
+}
+
+(ecomweb-common) {
+  reverse_proxy ecomweb_storefront:3002
+  header {
+    X-Real-IP {remote_host}
+    X-Forwarded-For {remote_host}
+    X-Forwarded-Proto {scheme}
+  }
+}
+
+apibase.ecomweb.app {
+  encode zstd gzip
+
+  reverse_proxy kong:8000
+  header {
+    Host -;
+    X-Real-IP {remote_host}
+    X-Forwarded-For {remote_host}
+    X-Forwarded-Host {remote_host}
+    X-Forwarded-Proto {scheme}
+  }
+}
+
+apisite.ecomweb.app {
+  encode zstd gzip
+
+  reverse_proxy store-kong:8000
+  header {
+    Host -;
+    X-Real-IP {remote_host}
+    X-Forwarded-For {remote_host}
+    X-Forwarded-Host {remote_host}
+    X-Forwarded-Proto {scheme}
+  }
+}
+
+cms.ecomweb.app {
+  reverse_proxy strapi:1337
+  header {
+    X-Real-IP {remote_host}
+    X-Forwarded-For {remote_host}
+    X-Forwarded-Proto {scheme}
+  }
+}

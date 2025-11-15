@@ -1,0 +1,16 @@
+# Environment files with sensitive data
+.env
+.env.*
+*.env
+**/.env
+**/.env.*
+
+# Sensitive credentials
+gcloud.json
+**/gcloud.json
+
+# Data directories
+docker-supabase-ecomapp/volumes/db/data/*
+docker-ecomweb-strapi/backups/*
+docker-supabase-ecomapp/volumes/storage/*
+docker-supabase-ecomapp/volumes/store-db/data/*

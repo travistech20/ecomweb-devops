@@ -1,0 +1,255 @@
+account:
+  name: "account-name"
+
+users:
+  - email: "travisnguyen.me@gmail.com"    # Required
+    password: "Tung@123"
+
+databases:
+  - name: ecomweb
+    port: 5432
+    slot:
+      name: sequin_slot
+    ssl: false
+    ipv6: false
+    hostname: db
+    password:
+      ffJYi56gSxRedvUy0rU9PEpk
+    username: postgres
+    pool_size: 10
+    database: postgres
+    use_local_tunnel: false
+    publication:
+      name: sequin_pub
+functions:
+  - code: |-
+      SELECT
+          p.id,
+          p.store_id,
+          c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.id = ANY($$1)
+    name: product-enrich-fn
+    type: enrichment
+    description:
+  - code: |-
+      def route(action, record, _changes, metadata) do
+        typesense_action =
+          case action do
+            "insert" -> "index"
+            "update" -> "index"
+            "delete" -> "delete"
+            # backfills emit a read action
+            "read"   -> "index"
+            _        -> "index"
+          end
+
+        table_name =
+          (Map.get(metadata, :table_name) || Map.get(metadata, "table_name") || "")
+          |> to_string()
+
+        store_id = Map.get(record, :store_id) || Map.get(record, "store_id")
+
+        # Fallback to plain list membership
+        scoped_tables = ["products", "blog_posts", "categories"]
+
+        collection_name =
+          if table_name in scoped_tables and not is_nil(store_id) do
+            "#{table_name}_store_#{store_id}"
+          else
+            table_name
+          end
+
+        %{
+          action: typesense_action,
+          collection_name: collection_name
+        }
+      end
+    name: store-collection-routting
+    type: routing
+    description:
+    sink_type: typesense
+  - code: |
+      def transform(action, record, changes, metadata) do
+        main_image_url =
+          cond do
+            is_binary(record["main_image_url"]) and String.length(record["main_image_url"]) > 0 ->
+              record["main_image_url"]
+
+            is_list(record["images"]) and length(record["images"]) > 0 ->
+              case record["images"] do
+                [first | _] when is_map(first) -> first["url"]
+                _ -> nil
+              end
+
+            true ->
+              nil
+          end
+        %{
+          id: record["id"] |> to_string(),
+          name: record["name"],
+          description: record["description"],
+          category_id: record["category_id"],
+          category_name: metadata.enrichment["category_name"],
+          store_id: record["store_id"],
+          status: record["status"],
+          main_image_url: main_image_url,
+          variant_mode: record["variant_mode"],
+          min_price: Decimal.to_float(record["min_price"]),
+          max_price: Decimal.to_float(record["max_price"]),
+          updated_at: DateTime.to_unix(record["updated_at"])
+        }
+      end
+    name: products-typesense-transform
+    type: transform
+    description:
+  - code: |
+      def transform(action, record, changes, metadata) do
+        %{
+          id: record["id"] |> to_string(),
+          name: record["name"],
+          description: record["description"],
+          store_id: record["store_id"],
+          is_active: record["is_active"],
+          image_url: record["image_url"],
+          sort_order: record["sort_order"]
+        }
+      end
+    name: transform-category
+    type: transform
+    description:
+  - code: |-
+      SELECT
+          p.id,
+          array_remove(array_agg(DISTINCT bc.name), NULL) AS categories,
+          array_remove(array_agg(DISTINCT bt.name), NULL) AS tags
+      FROM blog_posts p
+      LEFT JOIN blog_post_categories bpc ON p.id = bpc.blog_post_id
+      LEFT JOIN blog_categories bc ON bpc.blog_category_id = bc.id
+      LEFT JOIN blog_post_tags bpt ON p.id = bpt.blog_post_id
+      LEFT JOIN blog_tags bt ON bpt.blog_tag_id = bt.id
+      WHERE p.id = ANY($$1)
+      GROUP BY p.id;
+    name: enrich-blog-fn
+    type: enrichment
+    description:
+  - code: |
+      def transform(action, record, changes, metadata) do
+        %{
+          id: record["id"] |> to_string(),
+          title: record["title"],
+          slug: record["slug"],
+          content: record["content"],
+          categories: metadata.enrichment["categories"],
+          tags: metadata.enrichment["tags"],
+          store_id: record["store_id"],
+          excerpt: record["excerpt"],
+          status: record["status"],
+          featured_image_url: record["featured_image_url"],
+          reading_time: record["reading_time"],
+          view_count: record["view_count"],
+          published_at: DateTime.to_unix(record["published_at"])
+        }
+      end
+    name: blogposts-typesense-transform
+    type: transform
+    description:
+sinks:
+  - name: ecomweb-typesense-sink-blogposts
+    status: active
+    filter: none
+    tables: []
+    source:
+      include_schemas:
+      exclude_schemas:
+      exclude_tables:
+      include_tables:
+        - public.blog_posts
+    transform: blogposts-typesense-transform
+    destination:
+      type: typesense
+      batch_size: 40
+      api_key:
+        wFD0sFqzuJMoJDmqXsduulXRktbEGHP+3h5PGFSn3NM=
+      endpoint_url: http://typesense:8108
+      timeout_seconds: 10
+    actions:
+      - insert
+      - update
+      - delete
+    batch_size: 1
+    database: ecomweb
+    annotations: {}
+    enrichment: enrich-blog-fn
+    timestamp_format: iso8601
+    message_grouping: true
+    max_retry_count:
+    load_shedding_policy: pause_on_full
+    active_backfills: []
+    routing: store-collection-routting
+  - name: ecomweb-typesense-sink-category
+    status: active
+    filter: none
+    tables: []
+    source:
+      include_schemas:
+      exclude_schemas:
+      exclude_tables:
+      include_tables:
+        - public.categories
+    transform: transform-category
+    destination:
+      type: typesense
+      batch_size: 40
+      api_key:
+        wFD0sFqzuJMoJDmqXsduulXRktbEGHP+3h5PGFSn3NM=
+      endpoint_url: http://typesense:8108
+      timeout_seconds: 10
+    actions:
+      - insert
+      - update
+      - delete
+    batch_size: 1
+    database: ecomweb
+    annotations: {}
+    enrichment: none
+    timestamp_format: iso8601
+    message_grouping: true
+    max_retry_count:
+    load_shedding_policy: pause_on_full
+    active_backfills: []
+    routing: store-collection-routting
+  - name: ecomweb-typesense-sink-product
+    status: active
+    filter: none
+    tables: []
+    source:
+      include_schemas:
+      exclude_schemas:
+      exclude_tables:
+      include_tables:
+        - public.products
+    transform: products-typesense-transform
+    destination:
+      type: typesense
+      batch_size: 40
+      api_key:
+        wFD0sFqzuJMoJDmqXsduulXRktbEGHP+3h5PGFSn3NM=
+      endpoint_url: http://typesense:8108
+      timeout_seconds: 10
+    actions:
+      - insert
+      - update
+      - delete
+    batch_size: 1
+    database: ecomweb
+    annotations: {}
+    enrichment: product-enrich-fn
+    timestamp_format: iso8601
+    message_grouping: true
+    max_retry_count:
+    load_shedding_policy: pause_on_full
+    active_backfills: []
+    routing: store-collection-routting
+

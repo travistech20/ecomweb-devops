@@ -1,0 +1,150 @@
+# Docker Compose for Strapi CMS - Production Environment
+# This file should be deployed to: /opt/ecomweb/strapi/docker-compose.production.yml
+
+networks:
+  ecomweb_internal_net:
+    external: true
+  ecomweb_external_net:
+    external: true  
+
+
+services:
+  strapi-db:
+    container_name: strapi-db-production
+    image: postgres:16.0-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${STRAPI_DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${STRAPI_DATABASE_PASSWORD}
+      POSTGRES_DB: ${STRAPI_DATABASE_NAME}
+    volumes:
+      - strapi-db-data:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      - ecomweb_internal_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${STRAPI_DATABASE_USERNAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  strapi:
+    container_name: strapi-cms-production
+    image: ghcr.io/travistech20/ecomweb-cms-strapi:main
+    restart: unless-stopped
+    depends_on:
+      strapi-db:
+        condition: service_healthy
+    ports:
+      - "1337"
+    environment:
+      NODE_ENV: production
+
+      # Database Configuration
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: strapi-db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${STRAPI_DATABASE_NAME}
+      DATABASE_USERNAME: ${STRAPI_DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${STRAPI_DATABASE_PASSWORD}
+      DATABASE_SSL: false
+
+      # Strapi Security Keys
+      APP_KEYS: ${STRAPI_APP_KEYS}
+      API_TOKEN_SALT: ${STRAPI_API_TOKEN_SALT}
+      ADMIN_JWT_SECRET: ${STRAPI_ADMIN_JWT_SECRET}
+      TRANSFER_TOKEN_SALT: ${STRAPI_TRANSFER_TOKEN_SALT}
+      JWT_SECRET: ${STRAPI_JWT_SECRET}
+
+      # Server Configuration
+      HOST: 0.0.0.0
+      PORT: 1337
+
+      # Public URL
+      STRAPI_PUBLIC_URL: ${STRAPI_PUBLIC_URL}
+
+      # Admin URL
+      STRAPI_ADMIN_PATH: /admin
+
+      # Performance
+      NODE_OPTIONS: "--max-old-space-size=2048"
+
+    volumes:
+      - strapi-uploads:/opt/app/public/uploads
+      - strapi-extensions:/opt/app/src/extensions
+      - strapi-config:/opt/app/config
+    networks:
+      - ecomweb_internal_net
+      - ecomweb_external_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.strapi-prod.rule=Host(`cms.ecomweb.app`)"
+      - "traefik.http.routers.strapi-prod.entrypoints=websecure"
+      - "traefik.http.routers.strapi-prod.tls.certresolver=letsencrypt"
+      - "traefik.http.services.strapi-prod.loadbalancer.server.port=1337"
+      # Security headers
+      - "traefik.http.middlewares.strapi-security.headers.framedeny=true"
+      - "traefik.http.middlewares.strapi-security.headers.sslredirect=true"
+      - "traefik.http.middlewares.strapi-security.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.strapi-security.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.strapi-security.headers.stsPreload=true"
+      - "traefik.http.routers.strapi-prod.middlewares=strapi-security"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:1337/_health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # Optional: Backup service (runs daily)
+  strapi-backup:
+    container_name: strapi-backup
+    image: postgres:16.0-alpine
+    depends_on:
+      - strapi-db
+    volumes:
+      - ./backups:/backups
+    networks:
+      - ecomweb_internal_net
+    environment:
+      PGHOST: strapi-db
+      PGUSER: ${STRAPI_DATABASE_USERNAME}
+      PGPASSWORD: ${STRAPI_DATABASE_PASSWORD}
+      PGDATABASE: ${STRAPI_DATABASE_NAME}
+    command: |
+      sh -c '
+        while true; do
+          TIMESTAMP=$$(date +%Y%m%d_%H%M%S)
+          pg_dump -h strapi-db -U ${STRAPI_DATABASE_USERNAME} ${STRAPI_DATABASE_NAME} | gzip > /backups/strapi_backup_$${TIMESTAMP}.sql.gz
+          echo "Backup created: strapi_backup_$${TIMESTAMP}.sql.gz"
+          # Keep only last 30 backups
+          ls -t /backups/strapi_backup_*.sql.gz | tail -n +31 | xargs -r rm
+          # Wait 24 hours
+          sleep 86400
+        done
+      '
+    restart: unless-stopped
+
+volumes:
+  strapi-db-data:
+  strapi-uploads:
+  strapi-extensions:
+  strapi-config:

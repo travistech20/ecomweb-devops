@@ -1,0 +1,40 @@
+networks:
+  travisbytes_external_net:
+    external: true
+  conductify_external_net:
+    external: true
+  ecomweb_external_net:
+    external: true
+  travisbytes_net:
+    external: true    
+services:
+  caddy:
+    image: ghcr.io/caddybuilds/caddy-cloudflare:latest
+    container_name: caddy
+    restart: unless-stopped
+    environment:
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+    env_file:
+      - .env  
+    ports:
+      - "80:80"
+      - "443:443"
+      - "2019:2019" # Caddy admin interface
+    volumes:
+      - ./caddy.json:/etc/caddy/caddy.json
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./site:/srv
+      - caddy_data:/data
+      - caddy_config:/config
+    # command: ["caddy", "run", "--resume", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+
+    networks:
+      - ecomweb_external_net
+      - travisbytes_external_net
+      - conductify_external_net
+      - travisbytes_net
+
+volumes:
+  caddy_data:
+  caddy_config:

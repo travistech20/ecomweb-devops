@@ -1,0 +1,37 @@
+# Temporal dynamic configuration for development
+# This file contains runtime configuration that can be changed without restarting the server
+
+# Frontend service settings
+frontend.enableClientVersionCheck:
+  - value: true
+    constraints: {}
+
+# History service settings
+history.persistenceMaxQPS:
+  - value: 3000
+    constraints: {}
+
+# Matching service settings
+matching.numTaskqueueWritePartitions:
+  - value: 3
+    constraints: {}
+
+# Worker service settings
+worker.enableReplicator:
+  - value: false
+    constraints: {}
+
+# System-wide settings
+system.enableActivityLocalDispatchByNamespace:
+  - value: true
+    constraints: {}
+
+# Namespace settings
+limit.maxIDLength:
+  - value: 255
+    constraints: {}
+
+# Retention settings (workflows are kept for 7 days)
+system.defaultWorkflowRetentionPeriod:
+  - value: "168h"  # 7 days
+    constraints: {}
