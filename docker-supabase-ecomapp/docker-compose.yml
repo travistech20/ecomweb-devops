@@ -636,7 +636,29 @@ services:
       ]
 
     networks:
-      - ecomweb_internal_net  
+      - ecomweb_internal_net
+
+  # Database Backup Service - Automated scheduled backups
+  db-backup:
+    image: ghcr.io/travistech20/ecomweb-db-backup:production
+    container_name: supabase-db-backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_CONTAINER: supabase-db
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 2 * * *}  # Default: 2 AM daily
+      MAX_BACKUPS: ${MAX_BACKUPS:-7}  # Keep last 7 backups
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Access to Docker daemon
+      - ./volumes/backups/scheduled:/backups:z  # Backup storage
+      - ./scripts/backup:/scripts:ro  # Backup scripts (optional, for reference)
+    networks:
+      - ecomweb_internal_net
 
   vector:
     container_name: supabase-vector
@@ -907,6 +929,28 @@ services:
         "-c",
         "log_min_messages=fatal"
       ]
+    networks:
+      - ecomweb_internal_net
+
+  # Database Backup Service for Store DB
+  store-db-backup:
+    image: ghcr.io/travistech20/ecomweb-db-backup:production
+    container_name: store-supabase-db-backup
+    restart: unless-stopped
+    depends_on:
+      store-db:
+        condition: service_healthy
+    environment:
+      DB_CONTAINER: store-supabase-db
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${STORE_POSTGRES_PASSWORD}
+      BACKUP_SCHEDULE: ${STORE_BACKUP_SCHEDULE:-0 3 * * *}  # Default: 3 AM daily (offset from main db)
+      MAX_BACKUPS: ${STORE_MAX_BACKUPS:-7}  # Keep last 7 backups
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Access to Docker daemon
+      - ./volumes/backups/store-scheduled:/backups:z  # Backup storage
+      - ./scripts/backup:/scripts:ro  # Backup scripts (optional, for reference)
     networks:
       - ecomweb_internal_net
 
