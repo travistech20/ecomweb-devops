@@ -1116,6 +1116,7 @@ services:
     entrypoint: bash -c 'eval "echo \"$$(cat ~/temp.yml)\"" > ~/kong.yml && /docker-entrypoint.sh kong docker-start'
     networks:
       - ecomweb_internal_net
+      - ecomweb_external_net
 
   # Postgres Meta for Store Auth
   store-meta:
