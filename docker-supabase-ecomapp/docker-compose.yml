@@ -586,6 +586,10 @@ services:
       - ./volumes/db/realtime.sql:/docker-entrypoint-initdb.d/migrations/99-realtime.sql:Z
       # Must be superuser to create event trigger
       - ./volumes/db/webhooks.sql:/docker-entrypoint-initdb.d/init-scripts/98-webhooks.sql:Z
+      # Replication setup - configure pg_hba.conf for replication connections
+      - ./volumes/db/replication/configure-pg-hba.sh:/docker-entrypoint-initdb.d/init-scripts/96-configure-pg-hba.sh:Z
+      # Replication setup - create replicator user and slots
+      - ./volumes/db/replication/init-primary-replication.sql:/docker-entrypoint-initdb.d/init-scripts/97-replication.sql:Z
       # Must be superuser to alter reserved role
       - ./volumes/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:Z
       # Initialize the database settings with JWT_SECRET and JWT_EXP
@@ -657,6 +661,52 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro  # Access to Docker daemon
       - ./volumes/backups/scheduled:/backups:z  # Backup storage
       - ./scripts/backup:/scripts:ro  # Backup scripts (optional, for reference)
+    networks:
+      - ecomweb_internal_net
+
+  # PostgreSQL Read Replica 1 - Streaming Replication
+  db-replica-1:
+    container_name: supabase-db-replica-1
+    image: supabase/postgres:15.8.1.060
+    restart: unless-stopped
+    ports:
+      - 54325:5432
+    volumes:
+      - db-replica-1-data:/var/lib/postgresql/data
+      - db-replica-1-config:/etc/postgresql-custom
+      - ./volumes/db/replication/init-replica.sh:/init-replica.sh:ro
+    healthcheck:
+      test:
+        [
+        "CMD",
+        "pg_isready",
+        "-U",
+        "postgres",
+        "-h",
+        "localhost"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: ${POSTGRES_PORT}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: postgres
+      PRIMARY_HOST: db
+      PRIMARY_PORT: ${POSTGRES_PORT}
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-replicator_password}
+      PGDATA: /var/lib/postgresql/data
+      REPLICA_SLOT_NAME: replica_1_slot
+    entrypoint: ["/bin/bash", "/init-replica.sh"]
     networks:
       - ecomweb_internal_net
 
@@ -1266,6 +1316,8 @@ services:
 
 volumes:
   db-config:
+  db-replica-1-data:
+  db-replica-1-config:
   typesense-data:
   sequin_postgres_data:
   sequin_redis_data:
