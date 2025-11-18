@@ -63,7 +63,7 @@ services:
     container_name: ecomweb_haproxy
     ports:
       - "80"      # Main API port
-      - "8404:8404"    # Stats page
+      - "10.7.0.4:8404:8404"    # Stats page
     volumes:
       - ./volumes/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
       - ./volumes/haproxy/errors:/etc/haproxy/errorfiles
