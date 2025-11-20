@@ -116,7 +116,7 @@ services:
   # Cron Worker Service - Runs scheduled tasks
   ecomweb_cron:
     container_name: ecomweb_cron
-    image: ${API_BLUE_IMAGE}
+    image: ${CURRENT_API_IMAGE}
     working_dir: /app
     command: [bash, /app/startup-cron.sh]
     env_file:
@@ -148,7 +148,7 @@ services:
   # Temporal Worker Service - Processes workflow tasks
   ecomweb_worker:
     container_name: ecomweb_worker
-    image: ${API_BLUE_IMAGE}
+    image: ${CURRENT_API_IMAGE}
     working_dir: /app
     command: [bash, /app/startup-worker.sh]
     env_file:
@@ -178,7 +178,42 @@ services:
       start_period: 90s
     # Scale workers as needed
     deploy:
-      replicas: 1          
+      replicas: 1
+
+  # BullMQ Worker Service - Processes queue jobs
+  ecomweb_bullmq_worker:
+    container_name: ecomweb_bullmq_worker
+    image: ${CURRENT_API_IMAGE}
+    working_dir: /app
+    command: [bash, /app/startup-bullmq.sh]
+    env_file:
+      - .env.api
+    environment:
+      - NODE_ENV=production
+      - SERVICE_TYPE=bullmq_worker
+      - SHUTDOWN_GRACE_PERIOD=30
+    depends_on:
+      - ecomweb_redis
+    restart: always
+    volumes:
+      - ./volumes/backend-api/ecosystem.bullmq.config.js:/app/ecosystem.bullmq.config.js
+      - ./volumes/backend-api/startup-bullmq.sh:/app/startup-bullmq.sh
+      - ./volumes/backend-api/graceful-shutdown.sh:/app/graceful-shutdown.sh
+      - ./volumes/backend-api/healthcheck-bullmq.sh:/app/healthcheck-bullmq.sh
+    networks:
+      - ecomweb_internal_net
+    # Graceful shutdown configuration
+    stop_grace_period: 40s
+    stop_signal: SIGTERM
+    healthcheck:
+      test: ["CMD", "bash", "/app/healthcheck-bullmq.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    # Scale workers as needed
+    deploy:
+      replicas: 1              
 
 volumes:
   redis-data:

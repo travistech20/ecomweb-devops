@@ -150,6 +150,15 @@ main() {
         echo "      ⚠️  Worker not running"
     fi
 
+    # Stop bull worker service gracefully (150s grace period)
+    echo "   → Stopping bull worker service (grace period: 150s)..."
+    if docker ps | grep -q "ecomweb_bullmq_worker"; then
+        docker compose stop -t 150 ecomweb_bullmq_worker || echo "      Bull worker already stopped"
+        echo -e "      ${GREEN}✓ Bull worker stopped gracefully${NC}"
+    else
+        echo "      ⚠️  Bull worker not running"
+    fi
+
     echo -e "\n${GREEN}✓ Background services stopped gracefully${NC}"
 
     # Deploy new container
@@ -219,12 +228,16 @@ main() {
         sed -i "s/^GREEN_ENABLED=.*/GREEN_ENABLED=false/" .env
     fi
 
+    # Update current active image for background services
+    echo "📝 Updating CURRENT_API_IMAGE to ${NEW_IMAGE}..."
+    sed -i "s|^CURRENT_API_IMAGE=.*|CURRENT_API_IMAGE=${NEW_IMAGE}|" .env
+
     # Restart background services with new version
     echo -e "\n🔄 Restarting background services with new version..."
 
     # Pull latest images for background services
     echo "   → Pulling latest images..."
-    docker compose pull ecomweb_cron ecomweb_worker
+    docker compose pull ecomweb_cron ecomweb_worker ecomweb_bullmq_worker
 
     # Start cron service
     echo "   → Starting cron service..."
@@ -233,6 +246,10 @@ main() {
     # Start worker service
     echo "   → Starting worker service..."
     docker compose up -d ecomweb_worker
+
+    # Start worker service
+    echo "   → Starting bull worker service..."
+    docker compose up -d ecomweb_bullmq_worker
 
     # Wait for background services to be healthy
     echo "   → Waiting for services to be healthy..."

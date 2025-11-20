@@ -30,8 +30,8 @@ while [ $attempt -lt $max_attempts ]; do
     sleep 2
 done
 
-echo "Starting Temporal worker with PM2..."
-pm2 start /app/ecosystem.worker.config.js --no-daemon &
+echo "Starting BullMQ worker with PM2..."
+pm2 start /app/ecosystem.bullmq.config.js --no-daemon &
 
 # Wait for PM2 process to complete
 wait $!

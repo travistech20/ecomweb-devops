@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Ensure graceful-shutdown.sh has execute permissions
+chmod +x /app/graceful-shutdown.sh 2>/dev/null || true
+
 # Trap SIGTERM and SIGINT for graceful shutdown
 trap '/app/graceful-shutdown.sh' SIGTERM SIGINT
 
@@ -12,7 +15,7 @@ attempt=0
 while [ $attempt -lt $max_attempts ]; do
     echo "Checking database connection (attempt $((attempt + 1))/$max_attempts)..."
 
-    if npx prisma db execute --url="$DATABASE_URL" --stdin <<< "SELECT 1" &>/dev/null; then
+    if npx prisma db execute --url="$DATABASE_URL_NON_POOLING" --stdin <<< "SELECT 1" &>/dev/null; then
         echo "Database is ready!"
         break
     fi
