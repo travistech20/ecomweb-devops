@@ -134,7 +134,7 @@ main() {
 
     # Stop cron service gracefully (90s grace period)
     echo "   → Stopping cron service (grace period: 90s)..."
-    if docker ps | grep -q "ecomweb_cron"; then
+    if docker compose ps --services --filter "status=running" | grep -q "^ecomweb_cron$"; then
         docker compose stop -t 90 ecomweb_cron || echo "      Cron already stopped"
         echo -e "      ${GREEN}✓ Cron stopped gracefully${NC}"
     else
@@ -143,7 +143,7 @@ main() {
 
     # Stop worker service gracefully (150s grace period)
     echo "   → Stopping worker service (grace period: 150s)..."
-    if docker ps | grep -q "ecomweb_worker"; then
+    if docker compose ps --services --filter "status=running" | grep -q "^ecomweb_worker$"; then
         docker compose stop -t 150 ecomweb_worker || echo "      Worker already stopped"
         echo -e "      ${GREEN}✓ Worker stopped gracefully${NC}"
     else
@@ -152,7 +152,7 @@ main() {
 
     # Stop bull worker service gracefully (150s grace period)
     echo "   → Stopping bull worker service (grace period: 150s)..."
-    if docker ps | grep -q "ecomweb_bullmq_worker"; then
+    if docker compose ps --services --filter "status=running" | grep -q "^ecomweb_bullmq_worker$"; then
         docker compose stop -t 150 ecomweb_bullmq_worker || echo "      Bull worker already stopped"
         echo -e "      ${GREEN}✓ Bull worker stopped gracefully${NC}"
     else
@@ -218,6 +218,12 @@ main() {
     echo "   → Disabling $ACTIVE_COLOR server..."
     haproxy_command "disable server api_backend/$ACTIVE_COLOR"
     haproxy_command "disable server api_backend_ws/$ACTIVE_COLOR"
+    
+    # Stop the old active container to free up resources
+    OLD_SERVICE_NAME="ecomweb_api_${ACTIVE_COLOR}"
+    echo -e "\n🛑 Stopping old container: $OLD_SERVICE_NAME..."
+    docker compose stop "$OLD_SERVICE_NAME"
+    echo -e "   ${GREEN}✓ Old container stopped${NC}"
     
     # Update .env state
     if [ "$IDLE_COLOR" = "green" ]; then

@@ -31,8 +31,8 @@ EOF"
 fi
 echo ""
 
-# Create/fix replication user
-echo "3. Creating/fixing replication user..."
+# Create replication user
+echo "3. Creating replication user..."
 docker exec supabase-db psql -U postgres <<'SQL'
 DO $$
 BEGIN
@@ -40,9 +40,7 @@ BEGIN
         CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD 'replicator_password';
         RAISE NOTICE 'Created replication user: replicator';
     ELSE
-        -- Fix existing role to ensure it has LOGIN privilege
-        ALTER ROLE replicator WITH REPLICATION LOGIN PASSWORD 'replicator_password';
-        RAISE NOTICE 'Updated replication user: replicator (ensured LOGIN privilege)';
+        RAISE NOTICE 'Replication user already exists: replicator';
     END IF;
 END
 $$;
@@ -73,8 +71,8 @@ echo ""
 # Verify setup
 echo "6. Verifying replication setup..."
 echo ""
-echo "Replication user (should have rolcanlogin=true and rolreplication=true):"
-docker exec supabase-db psql -U postgres -c "SELECT rolname, rolcanlogin, rolreplication FROM pg_roles WHERE rolname = 'replicator';"
+echo "Replication user:"
+docker exec supabase-db psql -U postgres -c "SELECT rolname, rolreplication FROM pg_roles WHERE rolname = 'replicator';"
 echo ""
 echo "Replication slots:"
 docker exec supabase-db psql -U postgres -c "SELECT slot_name, slot_type, active FROM pg_replication_slots;"

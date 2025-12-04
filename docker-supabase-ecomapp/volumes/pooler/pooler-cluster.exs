@@ -52,17 +52,23 @@ replica1_params = %{
   }]
 }
 
-# Create tenants if they don't exist
-if !Supavisor.Tenants.get_tenant_by_external_id(master_params["external_id"]) do
-  {:ok, _} = Supavisor.Tenants.create_tenant(master_params)
+# Create or update tenants
+case Supavisor.Tenants.get_tenant_by_external_id(master_params["external_id"]) do
+  nil ->
+    {:ok, _} = Supavisor.Tenants.create_tenant(master_params)
+    IO.puts("✓ Master tenant '#{master_params["external_id"]}' created")
+  tenant ->
+    {:ok, _} = Supavisor.Tenants.update_tenant(tenant, master_params)
+    IO.puts("✓ Master tenant '#{master_params["external_id"]}' updated")
 end
 
-if !Supavisor.Tenants.get_tenant_by_external_id(replica1_params["external_id"]) do
-  {:ok, _} = Supavisor.Tenants.create_tenant(replica1_params)
-end
-
-if !Supavisor.Tenants.get_tenant_by_external_id(replica2_params["external_id"]) do
-  {:ok, _} = Supavisor.Tenants.create_tenant(replica2_params)
+case Supavisor.Tenants.get_tenant_by_external_id(replica1_params["external_id"]) do
+  nil ->
+    {:ok, _} = Supavisor.Tenants.create_tenant(replica1_params)
+    IO.puts("✓ Replica tenant '#{replica1_params["external_id"]}' created")
+  tenant ->
+    {:ok, _} = Supavisor.Tenants.update_tenant(tenant, replica1_params)
+    IO.puts("✓ Replica tenant '#{replica1_params["external_id"]}' updated")
 end
 
 # Create cluster
@@ -80,12 +86,6 @@ cluster_params = %{
       "type" => "read",
       "cluster_alias" => tenant_id,
       "tenant_external_id" => "#{tenant_id}_replica1",
-      "active" => true
-    },
-    %{
-      "type" => "read",
-      "cluster_alias" => tenant_id,
-      "tenant_external_id" => "#{tenant_id}_replica2",
       "active" => true
     }
   ]
