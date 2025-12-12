@@ -531,6 +531,9 @@ services:
       # Changes required for Pooler support
       - ./volumes/db/pooler.sql:/docker-entrypoint-initdb.d/migrations/99-pooler.sql:Z
       # Use named volume to persist pgsodium decryption key between restarts
+            # Persistent pg_hba.conf configuration (applied on every startup)
+      - ./volumes/db/config/pg_hba.conf:/config/pg_hba.conf:ro
+      - ./volumes/db/config/docker-entrypoint-wrapper.sh:/usr/local/bin/entrypoint-wrapper.sh:ro
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:
@@ -560,6 +563,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXP: ${JWT_EXPIRY}
+    entrypoint: ["/bin/bash", "/usr/local/bin/entrypoint-wrapper.sh"]  
     command:
       [
         "postgres",
